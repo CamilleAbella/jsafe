@@ -5,12 +5,28 @@ const path = require("path")
 const writing = {}
 const battery = {}
 
-function _free( jsonKey ){
-    if( battery[jsonKey].length > 0 ){
-        const { jsonPath, jsonData } = battery[jsonKey].shift()
+/**
+ * Write the next version if there is one.
+ * 
+ * @private
+ * @param {string} jsonKey - The id key of json file.
+ */
+
+function _next( jsonKey ){
+    if( battery[jsonKey] ){
+        const { jsonPath, jsonData } = battery[jsonKey]
+        delete battery[jsonKey]
         write( jsonPath, jsonData )
     }
 }
+
+/**
+ * Add JSON object to write or to stack.
+ * 
+ * @param {string} jsonPath - The path of json file.
+ * @param {object} jsonData - JSON stringable data.
+ * @returns {promise} - But catch error is optional.
+ */
 
 function write( jsonPath, jsonData ){
     return new Promise( function( resolve, reject ){
@@ -18,30 +34,31 @@ function write( jsonPath, jsonData ){
         const jsonString = JSON.stringify( jsonData, null, 2 )
         if( !writing[jsonKey] ){
             writing[jsonKey] = true
-            if( !battery.hasOwnProperty(jsonKey) ){
-                battery[jsonKey] = []
-            }
             current = jsonKey
             fs.writeFile( jsonPath, jsonString, function( error ){
                 writing[jsonKey] = false
-                _free( jsonKey )
+                _next( jsonKey )
                 if( error ) reject( error )
-                resolve( true )
+                resolve( jsonKey )
             })
         }else{
-            if( !battery[jsonKey].find( function( patient ){
-                return patient.jsonString == jsonString 
-            })){
-                battery[jsonKey].push({
-                    jsonPath : jsonPath,
-                    jsonData : jsonData,
-                    jsonString : jsonString
-                })
+            battery[jsonKey] = {
+                jsonPath : jsonPath,
+                jsonData : jsonData,
+                jsonString : jsonString
             }
-            resolve( false )
+            resolve( jsonKey )
         }
     })
 }
+
+/**
+ * Read the JSON file if it exists.
+ * 
+ * @param {string} jsonPath - The path of json file.
+ * @param {object} defaultJsonData - JSON stringable data.
+ * @returns {object} - JSON exploitable data.
+ */
 
 function read( jsonPath, defaultJsonData = {} ){
     try {
